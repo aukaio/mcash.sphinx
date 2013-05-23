@@ -12,4 +12,5 @@ setup(
     install_requires=[
         'sphinx'
     ],
+    namespace_packages=['mcash']
 )
