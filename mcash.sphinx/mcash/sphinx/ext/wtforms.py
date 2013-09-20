@@ -4,7 +4,7 @@ This Sphinx extension displays WTForms with fields
 from docutils import nodes
 from sphinx.util.compat import Directive
 
-from mcash.core.utils.utils import import_obj
+from mcash.utils import import_obj
 from mcash.core.forms.form import Form
 
 
