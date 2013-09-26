@@ -5,11 +5,12 @@ from docutils import nodes
 from docutils.statemachine import ViewList
 from sphinx.util.compat import Directive
 from sphinx.util.nodes import nested_parse_with_titles
+from sphinx.util.docstrings import prepare_docstring
 from mcash.sphinx import utils
 from webapp2_extras import routes as wa_routes
 from pprint import pprint
 
-from sphinxcontrib.httpdomain import HTTPResource
+from sphinxcontrib.httpdomain import HTTPResource, HTTPDomain
 
 
 def setup(app):
@@ -41,7 +42,6 @@ def get_route_handler(route):
 
 def normalize_template(template):
     return re.sub('<(\w+):[^>]+>', r'<\1>', template)
-
 
 
 class ApiEndpointDirective(Directive):
@@ -101,7 +101,7 @@ class ApiEndpointDirective(Directive):
                 obj = obj.__wrapped__
         except AttributeError:
             pass
-        return (obj.__doc__ or '').split('\n')
+        return prepare_docstring(obj.__doc__ or '')
 
     def get_resource_name(self, handler):
         try:
@@ -119,25 +119,31 @@ class ApiEndpointDirective(Directive):
         yield '.. http:{method}:: {path}'. format(method=method_name, path=path)
         yield ''
         for line in self.get_doc(method):
-            yield line
+            yield '    ' + line
         for line in self.process_schemas(method):
-            yield line
+            yield '    ' + line
         yield ''
 
     def form_directive(self, form):
+        if form is None:
+            yield '*None*'
+            yield ''
+            raise StopIteration
+        if isinstance(form, list):
+            form = form[0]
+            yield '*A list of objects containing the following data*'
         path = utils.get_import_path(form)
         yield ''
         yield '.. wtforms:: {path}'.format(path=path)
         yield ''
 
     def process_schemas(self, handler_method):
-        for form_name in ('input_form', 'output_form'):
-            try:
-                form = getattr(handler_method, form_name)
-                for line in self.form_directive(form):
-                    yield line
-            except AttributeError:
-                pass
+        for title, form_name in (('Request schema', 'input_form'), ('Response schema', 'output_form')):
+            yield '**%s**' % title
+            yield ''
+            form = getattr(handler_method, form_name, None)
+            for line in self.form_directive(form):
+                yield line
 
     def make_rst(self):
         for handler, urls in self.handler_map.items():
@@ -153,7 +159,7 @@ class ApiEndpointDirective(Directive):
                     if handler_method is None:
                         continue
                     for line in self.http_directive(handler_method, method_name, url):
-                        yield line
+                        yield '    ' + line
 
     def run(self):
         node = nodes.section()
