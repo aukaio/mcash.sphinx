@@ -1,7 +1,7 @@
 from importlib import import_module
 
 
-__all__ = ['import_obj']
+__all__ = ['import_obj', 'get_import_path']
 
 
 def import_obj(path):
@@ -15,5 +15,9 @@ def import_obj(path):
         except AttributeError:
             obj = import_module(curr_path)
     return obj
+
+
+def get_import_path(obj):
+    return obj.__module__ + '.' + obj.__name__
 
 

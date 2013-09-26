@@ -85,11 +85,14 @@ class ApiEndpointDirective(Directive):
             else:
                 urls = handlers[handler] = OrderedDict()
             url = normalize_template(route.template)
-            methods = self.allowed_methods.intersection(map(webapp2._normalize_handler_method, route.methods or []))
-            if url not in urls:
-                urls[url] = set(methods)
+            if url in urls:
+                methods = urls[url]
             else:
-                urls[url].update(methods)
+                methods = urls[url] = {}
+
+            for method_name in self.allowed_methods.intersection(map(webapp2._normalize_handler_method, route.methods or [])):
+                methods[method_name] = route.handler_method or method_name
+
         return handlers
 
     def get_doc(self, obj):
@@ -98,7 +101,7 @@ class ApiEndpointDirective(Directive):
                 obj = obj.__wrapped__
         except AttributeError:
             pass
-        return obj.__doc__ or ''
+        return (obj.__doc__ or '').split('\n')
 
     def get_resource_name(self, handler):
         try:
@@ -115,21 +118,41 @@ class ApiEndpointDirective(Directive):
         yield ''
         yield '.. http:{method}:: {path}'. format(method=method_name, path=path)
         yield ''
-        for line in self.get_doc(method).split('\n'):
+        for line in self.get_doc(method):
+            yield line
+        for line in self.process_schemas(method):
             yield line
         yield ''
+
+    def form_directive(self, form):
+        path = utils.get_import_path(form)
+        yield ''
+        yield '.. wtforms:: {path}'.format(path=path)
+        yield ''
+
+    def process_schemas(self, handler_method):
+        for form_name in ('input_form', 'output_form'):
+            try:
+                form = getattr(handler_method, form_name)
+                for line in self.form_directive(form):
+                    yield line
+            except AttributeError:
+                pass
 
     def make_rst(self):
         for handler, urls in self.handler_map.items():
             title = self.get_resource_name(handler)
             yield title
             yield '-' * len(title)
+            for line in self.get_doc(handler):
+                yield line
+            yield ''
             for url, methods in urls.items():
-                for method_name in methods:
-                    method = getattr(handler, method_name)
-                    if method is None:
+                for method_name, handler_method in methods.items():
+                    handler_method = getattr(handler, handler_method, None)
+                    if handler_method is None:
                         continue
-                    for line in self.http_directive(method, method_name, url):
+                    for line in self.http_directive(handler_method, method_name, url):
                         yield line
 
     def run(self):
