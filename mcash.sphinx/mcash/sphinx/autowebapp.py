@@ -1,4 +1,5 @@
 import re
+import inspect
 import webapp2
 from collections import OrderedDict
 from docutils import nodes
@@ -44,8 +45,22 @@ def normalize_template(template):
     return re.sub('<(\w+):[^>]+>', r'<\1>', template)
 
 
+def get_auth_level(f):
+    try:
+        level = f._auth_level
+    except AttributeError:
+        return None
+    else:
+        from mcash.auth.authinfo import AuthLevel
+        for name, value in inspect.getmembers(AuthLevel, lambda m: isinstance(m, int)):
+            if value == level:
+                return name
+    return None
+
+
 class ApiEndpointDirective(Directive):
     has_content = True
+    show_not_implemented = True
 
     required_arguments = 1
     option_spec = {
@@ -117,6 +132,16 @@ class ApiEndpointDirective(Directive):
     def http_directive(self, method, method_name, path):
         yield ''
         yield '.. http:{method}:: {path}'. format(method=method_name, path=path)
+        yield ''
+        if self.show_not_implemented and hasattr(method, '_not_implemented'):
+            reason = method._not_implemented
+            if reason:
+                reason = ': ' + reason
+            yield '    *NOT IMPLEMENTED%s*' % reason
+        yield ''
+        auth_level = get_auth_level(method)
+        if auth_level is not None:
+            yield '    *Required auth level: %s*' % auth_level
         yield ''
         for line in self.get_doc(method):
             yield '    ' + line
