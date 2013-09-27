@@ -20,13 +20,3 @@ def import_obj(path):
 
 def get_import_path(obj):
     return obj.__module__ + '.' + obj.__name__
-
-
-def not_implemented(reason=''):
-    def decorator(f):
-        @functools.wraps(f)
-        def new_f(*args, **kwargs):
-            raise NotImplementedError
-        new_f._not_implemented = reason
-        return new_f
-    return decorator
