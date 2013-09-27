@@ -1,12 +1,48 @@
 """
 This Sphinx extension displays WTForms with fields
 """
+import inspect
 from docutils import nodes
 from sphinx.util.compat import Directive
 from sphinx.util.docstrings import prepare_docstring
 
 from mcash.utils import import_obj
 from mcash.core.forms.form import Form
+fields = import_obj('wtforms.fields')
+
+
+def range_string_builder(var_name):
+    def build_string(v):
+        if v.min == v.max:
+            s = '{var_name} == {max}'
+        else:
+            s = ''
+            if v.min > -1:
+                s += '{min} <= '
+            s += '{var_name}'
+            if v.max > -1:
+                s += ' <= {max}'
+        return s.format(min=v.min, max=v.max, var_name=var_name)
+    return build_string
+
+
+field_type_map = {
+    getattr(fields, name): name[:-5].lower() for name in (
+        'DecimalField', 'DateField', 'DateTimeField', 'FloatField', 'IntegerField', 'StringField', 'BooleanField',
+    )
+}
+
+
+def get_field_type(field):
+    if not inspect.isclass(field):
+        field = type(field)
+    serialized_type = getattr(field, 'serialized_type', None)
+    if serialized_type is not None:
+        field = serialized_type
+    for cls in field.mro():
+        if cls in field_type_map:
+            return field_type_map[cls]
+    return 'Unknown'
 
 
 validator_processors = {
@@ -18,11 +54,8 @@ validator_processors = {
     'wtforms.validators.IPAddress': lambda v: 'IP address v4:%s v6:%s' % (v.ipv4, v.ipv6),
     'wtforms.validators.MacAddress': lambda v: 'Valid MAC address',
     'wtforms.validators.NoneOf': lambda v: 'Value not in %s' % v.values_formatter(v.values),
-    'wtforms.validators.NumberRange': lambda v: '%s <= value <= %s' % (v.min, v.max),
-    'wtforms.validators.Length': lambda v: '%slength%s' % (
-        '%s < ' % v.min if v.min > -1 else '',
-        ' < %s' % v.max if v.max > -1 else '',
-    ),
+    'wtforms.validators.NumberRange': range_string_builder('value'),
+    'wtforms.validators.Length': range_string_builder('length'),
     'wtforms.validators.Optional': lambda v: 'Optional (stops validation if missing)',
     'wtforms.validators.Regexp': lambda v: 'Regexp: %s' % v.regex.pattern,
     'wtforms.validators.Required': lambda v: 'Data required (new or existing on update)',
@@ -105,7 +138,7 @@ class WTFormsDirective(Directive):
             parent,
             term=field.name,
             definition=properties,
-            classifier=field.type,
+            classifier=get_field_type(field),
         )
 
     def process_field_FieldList(self, field, parent):
@@ -115,6 +148,7 @@ class WTFormsDirective(Directive):
         self.process_field_delegate(subfield, parent)
 
     def process_field_FormField(self, field, parent):
+        print field
         left_cell, right_cell = self.make_definition_list(
             parent,
             term=field.name,
@@ -125,7 +159,7 @@ class WTFormsDirective(Directive):
 
     def process_field_delegate(self, field, parent):
         if getattr(field.__class__, 'model_helper', False):  # Avoid recursion on FormField
-            return
+            pass
         # Try specific process first, then generic process
         process_field_method = getattr(self, 'process_field_%s' % field.type, getattr(self, 'process_field_generic'))
         process_field_method(field, parent)
