@@ -92,7 +92,6 @@ class WTFormsDirective(Directive):
         form_fields = env.wtforms_form_fields = getattr(env, 'wtforms_form_fields', [])
         FormProcessor(form_fields=form_fields).process_form(formclass, root)
 
-        print form_fields
         return [root]
 
 
