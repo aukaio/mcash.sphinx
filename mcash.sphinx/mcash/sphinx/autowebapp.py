@@ -1,17 +1,16 @@
 import re
 import inspect
-import webapp2
 from collections import OrderedDict
+
 from docutils import nodes
 from docutils.statemachine import ViewList
 from sphinx.util.compat import Directive
 from sphinx.util.nodes import nested_parse_with_titles
 from sphinx.util.docstrings import prepare_docstring
+
+import webapp2
 from mcash.sphinx import utils
 from webapp2_extras import routes as wa_routes
-from pprint import pprint
-
-from sphinxcontrib.httpdomain import HTTPResource, HTTPDomain
 
 
 def setup(app):
@@ -105,7 +104,9 @@ class ApiEndpointDirective(Directive):
             else:
                 methods = urls[url] = {}
 
-            for method_name in self.allowed_methods.intersection(map(webapp2._normalize_handler_method, route.methods or [])):
+            for method_name in self.allowed_methods.intersection(
+                    map(webapp2._normalize_handler_method, route.methods or [])
+            ):
                 methods[method_name] = route.handler_method or method_name
 
         return handlers
@@ -181,7 +182,7 @@ class ApiEndpointDirective(Directive):
             for url, methods in urls.items():
                 for method_name, handler_method in methods.items():
                     handler_method = getattr(handler, handler_method, None)
-                    if handler_method is None:
+                    if handler_method is None or hasattr(handler_method, '_undocumented'):
                         continue
                     for line in self.http_directive(handler_method, method_name, url):
                         yield '    ' + line
