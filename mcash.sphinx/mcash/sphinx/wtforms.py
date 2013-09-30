@@ -60,7 +60,7 @@ validator_processors = {
     'wtforms.validators.Optional': lambda v: 'Optional (stops validation if missing)',
     'wtforms.validators.Regexp': lambda v: 'Regexp: %s' % v.regex.pattern,
     'wtforms.validators.Required': lambda v: 'Data required (new or existing on update)',
-    'wtforms.validators.URL': lambda v: 'URL (regexp: %s)' % v.regex.pattern,
+    'wtforms.validators.URL': lambda v: 'URL',
     'wtforms.validators.UUID': lambda v: 'UUID (regexp: %s)' % v.regex.pattern,
 }
 

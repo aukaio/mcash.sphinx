@@ -185,7 +185,7 @@ class ApiEndpointDirective(Directive):
                     if handler_method is None or hasattr(handler_method, '_undocumented'):
                         continue
                     for line in self.http_directive(handler_method, method_name, url):
-                        yield '    ' + line
+                        yield line
 
     def run(self):
         node = nodes.section()
