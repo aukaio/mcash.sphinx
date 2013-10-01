@@ -6,7 +6,6 @@ from docutils import nodes
 from docutils.statemachine import ViewList
 from sphinx.util.compat import Directive
 from sphinx.util.nodes import nested_parse_with_titles
-from sphinx.util.docstrings import prepare_docstring
 
 import webapp2
 from mcash.sphinx import utils
@@ -111,14 +110,6 @@ class ApiEndpointDirective(Directive):
 
         return handlers
 
-    def get_doc(self, obj):
-        try:
-            while True:
-                obj = obj.__wrapped__
-        except AttributeError:
-            pass
-        return prepare_docstring(obj.__doc__ or '')
-
     def get_resource_name(self, handler):
         try:
             return handler.resource_name.replace('_', ' ')
@@ -144,7 +135,7 @@ class ApiEndpointDirective(Directive):
         if auth_level is not None:
             yield '    *Required auth level: %s*' % auth_level
         yield ''
-        for line in self.get_doc(method):
+        for line in utils.get_doc(method):
             yield '    ' + line
         for line in self.process_schemas(method):
             yield '    ' + line
@@ -176,7 +167,7 @@ class ApiEndpointDirective(Directive):
             title = self.get_resource_name(handler)
             yield title.capitalize()
             yield '-' * len(title)
-            for line in self.get_doc(handler):
+            for line in utils.get_doc(handler):
                 yield line
             yield ''
             for url, methods in urls.items():

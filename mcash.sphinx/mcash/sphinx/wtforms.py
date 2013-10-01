@@ -8,6 +8,7 @@ from sphinx.util.docstrings import prepare_docstring
 from docutils.statemachine import ViewList
 
 from mcash.utils import import_obj
+from mcash.utils import json
 from mcash.core.forms.form import Form
 from mcash.sphinx import utils
 fields = import_obj('wtforms.fields')
@@ -64,6 +65,18 @@ def get_field_type(field):
     return None
 
 
+def get_validator_description(validator, default=None):
+    description = getattr(validator, 'description', None)
+    if description is not None:
+        return description
+    for cls in type(validator).mro():
+        vp_key = '%s.%s' % (cls.__module__, cls.__name__)
+        vp = validator_processors.get(vp_key, None)
+        if vp is not None:
+            return vp(validator)
+    return type(validator).__name__
+
+
 validator_processors = {
     'wtforms.validators.AnyOf': lambda v: 'Value in %s' % v.values_formatter(v.values),
     'wtforms.validators.DataRequired': lambda v: 'Data required (new or existing on update)',
@@ -75,7 +88,7 @@ validator_processors = {
     'wtforms.validators.NoneOf': lambda v: 'Value not in %s' % v.values_formatter(v.values),
     'wtforms.validators.NumberRange': range_string_builder('value'),
     'wtforms.validators.Length': range_string_builder('length'),
-    'wtforms.validators.Optional': lambda v: 'Optional (stops validation if missing)',
+    'wtforms.validators.Optional': lambda v: 'Optional',
     'wtforms.validators.Regexp': lambda v: 'Regexp: %s' % v.regex.pattern,
     'wtforms.validators.Required': lambda v: 'Data required (new or existing on update)',
     'wtforms.validators.URL': lambda v: 'URL',
@@ -112,71 +125,57 @@ class WTFormsDirective(Directive):
 
         return [root]
 
-    def make_field(self, name, body):
-        if not isinstance(body, nodes.Node):
-            body = nodes.paragraph(text=body)
-        return nodes.field(
-            '',
-            nodes.field_name(text=name),
-            nodes.field_body('', body))
-
-    def make_field_list(self, iterable):
-        if isinstance(iterable, dict):
-            iterable = iterable.items()
-        field_list_node = nodes.field_list()
-        field_list_node.extend([self.make_field(k, v) for k, v in iterable])
-        return field_list_node
-
     def process_validators(self, field):
-        validators = nodes.enumerated_list()
+        validators = []
         for v in field.validators:
-            vp_key = '%s.%s' % (v.__class__.__module__, v.__class__.__name__)
-            vp = validator_processors.get(vp_key, None)
-            if vp:
-                li = nodes.list_item()
-                result = ViewList(prepare_docstring(vp(v)))
-                self.state.nested_parse(result, 1, li)
-                validators.append(li)
+            description = get_validator_description(v)
+            li = nodes.list_item()
+            result = ViewList(prepare_docstring(description))
+            self.state.nested_parse(result, 1, li)
+            validators.append(li)
         return validators
+
+    def process_field_desscription(self, description, parent):
+        description = ViewList(
+            prepare_docstring(
+                description
+            )
+        )
+        self.state.nested_parse(description, 0, parent)
+
 
     def extract_field_properties(self, field, field_list=False):
         return {
             'default': field.default,
-            'description': field.description if field.description else field.label.text,
             'widget': field.__class__.__name__,
             'validators': self.process_validators(field),
+            'required': field.flags.required,
+            'description': field.description if field.description else field.label.text,
         }
 
-    def make_definition_list(self, parent, term, definition=None, classifier=None):
-        left_cell, right_cell = self.prepare_cells(parent)
-        if not isinstance(term, nodes.Node):
-            term = nodes.strong(text=term)
-        left_cell.append(term)
-        if classifier is not None:
-            left_cell.append(field_type_node('', nodes.Text(classifier)))
-        if definition is not None:
-            required = definition.get('required', False)
-            left_cell.append(nodes.classifier('', 'required' if required else 'optional'))
-            defs = []
-            if not required and 'default' in definition:
-                left_cell.append(nodes.classifier('', definition['default']))
-            if 'validators' in definition:
-                defs.append(nodes.bullet_list('', *definition['validators'], classes=[]))
-            left_cell.extend(nodes.paragraph('', d) if not isinstance(d, nodes.Node) else d for d in defs)
+    def make_field_definition(self, parent, field_name, field_type, **properties):
+        specs_cell, description_cell = self.prepare_cells(parent)
+        if not isinstance(field_name, nodes.Node):
+            field_name = nodes.strong(text=field_name)
+        specs_cell.append(field_name)
+        specs_cell.append(field_type_node('', nodes.Text(field_type)))
 
-            description = ViewList()
-            for line in prepare_docstring(definition['description']):
-                description.append(line, '<wtforms>')
-            self.state.nested_parse(description, 0, right_cell)
-        return left_cell, right_cell
+        required = properties['required']
+        specs_cell.append(nodes.classifier('', 'required' if required else 'optional'))
+        if not required and 'default' in properties:
+            specs_cell.append(nodes.classifier('', 'default=%s' % json.dumps(properties['default'])))
+        if 'validators' in properties:
+            specs_cell.append(nodes.bullet_list('', *properties['validators']))
+        self.process_field_desscription(properties['description'], description_cell)
+        return specs_cell, description_cell
 
     def process_field_generic(self, field, parent):
         properties = self.extract_field_properties(field)
-        return self.make_definition_list(
+        return self.make_field_definition(
             parent,
-            term=field.name,
-            definition=properties,
-            classifier=get_field_type(field),
+            field_name=field.name,
+            field_type=get_field_type(field),
+            **properties
         )
 
     def process_field_FieldList(self, field, parent):
@@ -214,19 +213,17 @@ class WTFormsDirective(Directive):
     def prepare_table(self, parent):
         tbody = nodes.tbody(
             '',
-            )
+        )
         table = nodes.table(
             '',
             nodes.tgroup(
                 '',
-                nodes.colspec(colwidth=1, classes=['foo-raw']),
+                nodes.colspec(colwidth=1),
                 nodes.colspec(colwidth=1),
                 tbody,
-                ),
-            )
+            ),
+        )
         parent.append(table)
-        table['width'] = '100%'
-        table['border'] = '100%'
         return tbody
 
     def prepare_cells(self, parent):
@@ -237,6 +234,7 @@ class WTFormsDirective(Directive):
 
     def process_form(self, formclass, parent):
         assert issubclass(formclass, Form)
+        self.state.nested_parse(ViewList(utils.get_doc(formclass)), 0, parent)
         fields = self.prepare_table(parent)
         forminstance = formclass()
 
