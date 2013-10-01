@@ -265,8 +265,6 @@ def process_form_field_nodes(app, doctree):
 def process_form_field_references(app, doctree, fromdocname):
     env = app.builder.env
     form_fields = getattr(env, 'wtforms_form_fields', None)
-    if not form_fields:
-        return
 
     for node in doctree.traverse(field_type_node):
         parent = nodes.classifier()
