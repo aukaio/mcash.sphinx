@@ -62,6 +62,7 @@ validator_processors = {
     'wtforms.validators.Required': lambda v: 'Data required (new or existing on update)',
     'wtforms.validators.URL': lambda v: 'URL',
     'wtforms.validators.UUID': lambda v: 'UUID (regexp: %s)' % v.regex.pattern,
+    'mcash.core.forms.validators.NetmaskValidator': lambda v: 'Valid netmask IP v %s' % (v.version or '4 and 6'),
 }
 
 
@@ -71,7 +72,6 @@ class WTFormsDirective(Directive):
     # equivalent
     has_content = True
     show_form_name = False
-
 
     def run(self):
         # This starts processing and delegates to specific and generic process methods for forms and fields
@@ -200,7 +200,8 @@ class FormProcessor(object):
         if isinstance(field, fields.FormField):
             process_field_method = self.process_field_FormField
         else:
-            process_field_method = getattr(self, 'process_field_%s' % field.type, getattr(self, 'process_field_generic'))
+            process_field_method = getattr(
+                self, 'process_field_%s' % field.type, getattr(self, 'process_field_generic'))
         process_field_method(field, parent)
 
     def prepare_table(self, parent):
