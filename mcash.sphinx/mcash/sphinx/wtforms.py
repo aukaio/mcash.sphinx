@@ -5,11 +5,20 @@ import inspect
 from docutils import nodes
 from sphinx.util.compat import Directive
 from sphinx.util.docstrings import prepare_docstring
+from docutils.statemachine import ViewList
 
 from mcash.utils import import_obj
 from mcash.core.forms.form import Form
 from mcash.sphinx import utils
 fields = import_obj('wtforms.fields')
+
+
+class form_fields_node(nodes.General, nodes.Element):
+    pass
+
+
+class form_field_reference(nodes.General, nodes.Element):
+    pass
 
 
 def range_string_builder(var_name):
@@ -38,11 +47,15 @@ def get_field_type(field):
     if not inspect.isclass(field):
         field = type(field)
     serialized_type = getattr(field, 'serialized_type', None)
+    if isinstance(serialized_type, basestring):
+        return serialized_type
     if serialized_type is not None:
-        field = serialized_type
-    for cls in field.mro():
+        return get_field_type(serialized_type)
+    if len(field.mro()) > 1:
+        cls = field.mro()[1]
         if cls in field_type_map:
             return field_type_map[cls]
+        return get_field_type(cls)
     return 'Unknown'
 
 
@@ -89,39 +102,10 @@ class WTFormsDirective(Directive):
                 nodes.strong(text=classname)))
 
         env = self.state.document.settings.env
-        form_fields = env.wtforms_form_fields = getattr(env, 'wtforms_form_fields', [])
-        FormProcessor(form_fields=form_fields).process_form(formclass, root)
+        self.form_fields = env.wtforms_form_fields = getattr(env, 'wtforms_form_fields', {})
+        self.process_form(formclass, root)
 
         return [root]
-
-
-class form_fields_node(nodes.General, nodes.Element):
-    pass
-
-
-class FormFieldsDirective(Directive):
-    has_content = True
-
-    def run(self):
-        return [form_fields_node()]
-
-
-def process_form_field_nodes(app, doctree, fromdocname):
-    env = app.builder.env
-    form_processor = FormProcessor([])
-
-    for node in doctree.traverse(form_fields_node):
-        content = []
-        for form in getattr(env, 'wtforms_form_fields', ()):
-            form = utils.import_obj(form)
-            content.append(nodes.subtitle('', form.__name__))
-            form_processor.process_form(form, content)
-        node.replace_self(content)
-
-
-class FormProcessor(object):
-    def __init__(self, form_fields):
-        self.form_fields = form_fields
 
     def make_field(self, name, body):
         if not isinstance(body, nodes.Node):
@@ -144,7 +128,10 @@ class FormProcessor(object):
             vp_key = '%s.%s' % (v.__class__.__module__, v.__class__.__name__)
             vp = validator_processors.get(vp_key, None)
             if vp:
-                validators.append(nodes.list_item('', nodes.paragraph(text=vp(v))))
+                li = nodes.list_item()
+                result = ViewList(prepare_docstring(vp(v)))
+                self.state.nested_parse(result, 1, li)
+                validators.append(li)
         return validators
 
     def extract_field_properties(self, field, field_list=False):
@@ -160,8 +147,10 @@ class FormProcessor(object):
         if not isinstance(term, nodes.Node):
             term = nodes.strong(text=term)
         left_cell.append(term)
+        field_type_node = None
         if classifier is not None:
-            left_cell.append(nodes.classifier(text=classifier))
+            field_type_node = nodes.classifier(text=classifier)
+            left_cell.append(field_type_node)
         if definition is not None:
             required = definition.get('required', False)
             left_cell.append(nodes.classifier('', 'required' if required else 'optional'))
@@ -171,17 +160,21 @@ class FormProcessor(object):
             if 'validators' in definition:
                 defs.append(nodes.bullet_list('', *definition['validators'], classes=[]))
             left_cell.extend(nodes.paragraph('', d) if not isinstance(d, nodes.Node) else d for d in defs)
-            right_cell.append(nodes.paragraph('', '\n'.join(prepare_docstring(definition['description']))))
-        return left_cell, right_cell
+
+            description = ViewList()
+            for line in prepare_docstring(definition['description']):
+                description.append(line, '<wtforms>')
+            self.state.nested_parse(description, 0, right_cell)
+        return left_cell, right_cell, field_type_node
 
     def process_field_generic(self, field, parent):
         properties = self.extract_field_properties(field)
-        self.make_definition_list(
+        return self.make_definition_list(
             parent,
             term=field.name,
             definition=properties,
             classifier=get_field_type(field),
-            )
+        )
 
     def process_field_FieldList(self, field, parent):
         subfield = field.unbound_field.bind(form=None, name=field.name, prefix='')
@@ -190,8 +183,20 @@ class FormProcessor(object):
         self.process_field_delegate(subfield, parent)
 
     def process_field_FormField(self, field, parent):
-        self.process_field_generic(field, parent)
-        self.form_fields.append(utils.get_import_path(field.form_class))
+        env = self.state.document.settings.env
+        left_cell, right_cell, field_type_node = self.process_field_generic(field, parent)
+        result = []
+        self.process_form(field.form_class, result)
+        form_path = utils.get_import_path(field.form_class)
+        if form_path in self.form_fields:
+            form_info = self.form_fields[form_path]
+        else:
+            form_info = self.form_fields[form_path] = {
+                'doc': result,
+                'name': get_field_type(field),
+                'target_id': "wtforms-formfield-%d" % env.new_serialno('wtforms-formfield')
+            }
+        field_type_node.replace_self(form_field_reference('', *field_type_node.children, form_path=form_path))
 
     def process_field_delegate(self, field, parent):
         if getattr(field.__class__, 'model_helper', False):  # Avoid recursion on FormField
@@ -207,7 +212,7 @@ class FormProcessor(object):
     def prepare_table(self, parent):
         tbody = nodes.tbody(
             '',
-        )
+            )
         table = nodes.table(
             '',
             nodes.tgroup(
@@ -215,8 +220,8 @@ class FormProcessor(object):
                 nodes.colspec(colwidth=1, classes=['foo-raw']),
                 nodes.colspec(colwidth=1),
                 tbody,
-            ),
-        )
+                ),
+            )
         parent.append(table)
         table['width'] = '100%'
         table['border'] = '100%'
@@ -239,7 +244,45 @@ class FormProcessor(object):
             self.process_field_delegate(field, fields)
 
 
+class FormFieldsDirective(Directive):
+    has_content = True
+
+    def run(self):
+        return [form_fields_node()]
+
+
+def process_form_field_nodes(app, doctree):
+    env = app.builder.env
+    for node in doctree.traverse(form_fields_node):
+        content = []
+        for form_path, form_info in getattr(env, 'wtforms_form_fields', {}).items():
+            target = nodes.target('', '', ids=[form_info['target_id']])
+            content.append(target)
+            content.append(nodes.subtitle('', form_info['name'].capitalize()))
+            content.extend(form_info['doc'])
+            form_info['docname'] = env.docname
+        node.replace_self(content)
+
+
+def process_form_field_references(app, doctree, fromdocname):
+    env = app.builder.env
+    form_fields = getattr(env, 'wtforms_form_fields', None)
+    if not form_fields:
+        return
+
+    for node in doctree.traverse(form_field_reference):
+        form_info = form_fields[node['form_path']]
+        parent = nodes.classifier('*', '*')
+        ref = nodes.reference('', '', *node.children)
+        parent.insert(0, ref)
+        ref['refdocname'] = form_info['docname']
+        ref['refuri'] = app.builder.get_relative_uri(fromdocname, form_info['docname'])
+        ref['refuri'] += '#' + form_info['target_id']
+        node.replace_self(parent)
+
+
 def setup(app):
     app.add_directive('wtforms', WTFormsDirective)
     app.add_directive('formfields', FormFieldsDirective)
-    app.connect('doctree-resolved', process_form_field_nodes)
+    app.connect('doctree-read', process_form_field_nodes)
+    app.connect('doctree-resolved', process_form_field_references)
