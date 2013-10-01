@@ -174,7 +174,7 @@ class ApiEndpointDirective(Directive):
     def make_rst(self):
         for handler, urls in self.handler_map.items():
             title = self.get_resource_name(handler)
-            yield title
+            yield title.capitalize()
             yield '-' * len(title)
             for line in self.get_doc(handler):
                 yield line

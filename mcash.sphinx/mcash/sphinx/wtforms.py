@@ -169,7 +169,7 @@ class FormProcessor(object):
             if not required and 'default' in definition:
                 left_cell.append(nodes.classifier('', definition['default']))
             if 'validators' in definition:
-                defs.extend(definition['validators'])
+                defs.append(nodes.bullet_list('', *definition['validators'], classes=[]))
             left_cell.extend(nodes.paragraph('', d) if not isinstance(d, nodes.Node) else d for d in defs)
             right_cell.append(nodes.paragraph('', '\n'.join(prepare_docstring(definition['description']))))
         return left_cell, right_cell
@@ -206,7 +206,7 @@ class FormProcessor(object):
     def prepare_table(self, parent):
         tbody = nodes.tbody(
             '',
-            )
+        )
         table = nodes.table(
             '',
             nodes.tgroup(
@@ -214,10 +214,11 @@ class FormProcessor(object):
                 nodes.colspec(colwidth=1, classes=['foo-raw']),
                 nodes.colspec(colwidth=1),
                 tbody,
-                ),
-            classes=['foo']
+            ),
         )
         parent.append(table)
+        table['width'] = '100%'
+        table['border'] = '100%'
         return tbody
 
     def prepare_cells(self, parent):
