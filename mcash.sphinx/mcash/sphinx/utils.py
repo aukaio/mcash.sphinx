@@ -29,5 +29,11 @@ def get_doc(obj):
             obj = obj.__wrapped__
     except AttributeError:
         pass
-    return prepare_docstring(obj.__doc__ or '')
+    ds = obj.__doc__
+    if ds is None:
+        return []
+    ds = prepare_docstring(ds)
+    if ds is None:
+        return []
+    return ds
 
