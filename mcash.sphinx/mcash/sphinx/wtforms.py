@@ -25,12 +25,12 @@ class field_type_node(nodes.General, nodes.Element):
     pass
 
 
-class field_doc_node(nodes.General, nodes.Element):
+class api_doc_node(nodes.General, nodes.Element):
     pass
 
 
 def field_type_role(role, rawtext, text, lineno, inliner, options={}, content=[]):
-    return [field_doc_node('', field_type_override_node(rawtext, text))], []
+    return [api_doc_node('', field_type_override_node(rawtext, text))], []
 
 
 class field_type_override_node(nodes.General, nodes.Element):
@@ -247,7 +247,7 @@ class WTFormsDirective(Directive):
         result = nodes.Element()
         self.state.nested_parse(ViewList(utils.get_doc(obj)), 0, result)
         parent.extend(itertools.chain(
-            *(n.children for n in result.traverse(field_doc_node))
+            *(n.children for n in result.traverse(api_doc_node))
         ))
 
 
@@ -258,11 +258,11 @@ class FormFieldsDirective(Directive):
         return [form_fields_node()]
 
 
-class FieldDocDirective(Directive):
+class ApiDocDirective(Directive):
     has_content = True
 
     def run(self):
-        parent = field_doc_node()
+        parent = api_doc_node()
         self.state.nested_parse(ViewList(self.content), 0, parent)
         return [parent]
 
@@ -316,12 +316,28 @@ def process_form_field_references(app, doctree, fromdocname):
             parent.append(nodes.Text('*'))
         node.replace_self(parent)
 
+    for node in doctree.traverse(field_type_override_node):
+        node.parent.remove(node)
+
+
+def visit_api_doc(self, node):
+    new = nodes.paragraph()
+    new.append(nodes.strong('API Documentation', 'API Documentation'))
+    new.extend(node.children)
+    node.replace_self(new)
+    self.visit_paragraph(node)
+
+
+def depart_api_doc(self, node):
+    self.depart_paragraph(node)
+
 
 def setup(app):
     app.add_directive('wtforms', WTFormsDirective)
-    app.add_directive('formfields', FormFieldsDirective)
-    app.add_directive('fielddoc', FieldDocDirective)
+    app.add_directive('form-fields', FormFieldsDirective)
+    app.add_directive('api-documentation', ApiDocDirective)
     app.connect('doctree-read', process_form_field_nodes)
     app.connect('doctree-resolved', process_form_field_references)
-    app.add_role('fieldtype', field_type_role)
-    app.add_object_type
+    app.add_role('field-type', field_type_role)
+
+    app.add_node(api_doc_node, html=(visit_api_doc, depart_api_doc))
