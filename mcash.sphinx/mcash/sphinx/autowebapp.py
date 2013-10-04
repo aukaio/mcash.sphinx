@@ -156,9 +156,11 @@ class ApiEndpointDirective(Directive):
 
     def process_schemas(self, handler_method):
         for title, form_name in (('Request schema', 'input_form'), ('Response schema', 'output_form')):
+            form = getattr(handler_method, form_name, None)
+            if form is None:
+                continue
             yield '**%s**' % title
             yield ''
-            form = getattr(handler_method, form_name, None)
             for line in self.form_directive(form):
                 yield line
 
