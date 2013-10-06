@@ -21,8 +21,20 @@ class form_fields_node(nodes.General, nodes.Element):
     pass
 
 
-class field_type_node(nodes.General, nodes.Element):
+class field_type_ref(nodes.General, nodes.Element):
     pass
+
+
+def wtforms_role(role, rawtext, text, lineno, inliner, options=[], content=[]):
+    m = re.match(r'^(.+?)( <(.+?)>)?$', text)
+    g = m.groups()
+    ref = field_type_ref()
+    if g[2] is None:
+        ref['field_path'] = g[0]
+    else:
+        ref['field_path'] = g[2]
+        ref['text'] = g[0]
+    return [ref], []
 
 
 class api_doc_node(nodes.General, nodes.Element):
@@ -150,7 +162,7 @@ class WTFormsDirective(Directive):
         if not isinstance(field_name, nodes.Node):
             field_name = nodes.strong(text=field_name)
         specs_cell.append(field_name)
-        specs_cell.append(field_type_node('', nodes.Text(field_type)))
+        specs_cell.append(nodes.classifier('', '', field_type_ref()))
 
         required = properties['required']
         specs_cell.append(nodes.classifier('', 'required' if required else 'optional'))
@@ -187,7 +199,7 @@ class WTFormsDirective(Directive):
                 'doc': result.children,
                 'target_id': "wtforms-fielddoc-%d" % env.new_serialno('wtforms-fielddoc')
             }
-        for node in specs_cell.traverse(field_type_node):
+        for node in specs_cell.traverse(field_type_ref):
             node['field_path'] = field_path
 
     def process_field_FieldList(self, field, parent):
@@ -298,23 +310,33 @@ def process_from_fields_dict(form_fields):
         form_info['is_base'] = form_class.__name__ in base_field_types
 
 
+def find_field_info(field_info_map, path):
+    try:
+        return field_info_map[path]
+    except KeyError:
+        candidates = filter(lambda e: e[0].rsplit('.')[-1] == path, field_info_map.items())
+        if len(candidates) == 1:
+            return candidates[0][1]
+        raise
+
+
 def process_form_field_references(app, doctree, fromdocname):
     env = app.builder.env
     form_fields = getattr(env, 'wtforms_form_fields', {})
 
-    for node in doctree.traverse(field_type_node):
-        parent = nodes.classifier()
-        form_info = form_fields[node['field_path']]
+    for node in doctree.traverse(field_type_ref):
+        form_info = find_field_info(form_fields, node['field_path'])
         if form_info['is_base']:
-            parent.append(nodes.Text(form_info['name']))
+            ref = nodes.Text(form_info['name'])
         else:
-            ref = nodes.reference('', form_info['name'])
+            if 'text' in node:
+                ref = nodes.reference('', node['text'])
+            else:
+                ref = nodes.reference('', form_info['name'])
             ref['refdocname'] = form_info['docname']
             ref['refuri'] = app.builder.get_relative_uri(fromdocname, form_info['docname'])
             ref['refuri'] += '#' + form_info['target_id']
-            parent.append(ref)
-            parent.append(nodes.Text('*'))
-        node.replace_self(parent)
+        node.replace_self(ref)
 
     for node in doctree.traverse(field_type_override_node):
         node.parent.remove(node)
@@ -339,5 +361,6 @@ def setup(app):
     app.connect('doctree-read', process_form_field_nodes)
     app.connect('doctree-resolved', process_form_field_references)
     app.add_role('field-type', field_type_role)
+    app.add_role('wtforms', wtforms_role)
 
     app.add_node(api_doc_node, html=(visit_api_doc, depart_api_doc))
