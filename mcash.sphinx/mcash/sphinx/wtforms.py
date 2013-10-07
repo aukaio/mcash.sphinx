@@ -66,8 +66,7 @@ def range_string_builder(var_name):
 
 
 base_field_types = {
-    'DecimalField', 'DateField', 'DateTimeField', 'FloatField', 'IntegerField', 'StringField', 'BooleanField',
-    'TextAreaField',
+    'DecimalField', 'FloatField', 'IntegerField', 'StringField', 'BooleanField', 'TextAreaField',
 }
 
 
