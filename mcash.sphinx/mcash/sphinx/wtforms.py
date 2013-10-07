@@ -108,6 +108,15 @@ class WTFormsDirective(Directive):
     # equivalent
     has_content = True
     show_form_name = False
+    option_spec = {
+        'exclude-docstring': bool,
+    }
+
+    def __init__(self, name, arguments, options, content, lineno,
+                 content_offset, block_text, state, state_machine):
+        super(WTFormsDirective, self).__init__(name, arguments, options, content, lineno,
+                 content_offset, block_text, state, state_machine)
+        self.exclude_docstring = self.options.get('exclude-docstring', False)
 
     def run(self):
         # This starts processing and delegates to specific and generic process methods for forms and fields
@@ -245,7 +254,8 @@ class WTFormsDirective(Directive):
 
     def process_form(self, form_class, parent):
         assert issubclass(form_class, Form)
-        self.parse_field_doc(form_class, parent)
+        if not self.exclude_docstring:
+            self.parse_field_doc(form_class, parent)
         table = self.prepare_table(parent)
         form_instance = form_class()
 
