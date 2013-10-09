@@ -355,6 +355,28 @@ def process_form_field_references(app, doctree, fromdocname):
         node.parent.remove(node)
 
 
+def process_html_context(app, pagename, templatename, context, doctree):
+    if doctree is None:
+        return
+    env = app.builder.env
+    toc = env.get_toctree_for(pagename, app.builder, collapse=True, maxdepth=3)
+    toc = toc[0].deepcopy()
+    uls = toc.traverse(nodes.bullet_list)
+    top_ul = uls.pop(0)
+    top_ul['classes'].extend(('nav', 'sidenav'))
+    for node in uls:
+        node['classes'].append('nav')
+    context['sidebar_globaltoc'] = app.builder.render_partial(toc)['fragment']
+
+    toc = env.get_toc_for(pagename, app.builder)
+    if len(toc) == 1 and len(toc[0]) == 2:
+        toc = toc[0][1]
+    uls = toc.traverse(nodes.bullet_list)
+    uls.pop(0)['classes'].append('nav sidenav')
+    for node in uls:
+        node['classes'].append('nav')
+
+
 def visit_api_doc(self, node):
     new = nodes.paragraph()
     new.append(nodes.strong('API Documentation', 'API Documentation'))
@@ -373,6 +395,7 @@ def setup(app):
     app.add_directive('api-documentation', ApiDocDirective)
     app.connect('doctree-read', process_form_field_nodes)
     app.connect('doctree-resolved', process_form_field_references)
+    app.connect('html-page-context', process_html_context)
     app.add_role('field-type', field_type_role)
     app.add_role('wtforms', wtforms_role)
 
