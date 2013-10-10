@@ -303,8 +303,11 @@ def process_form_field_nodes(app, doctree):
         sec.extend(form_info['doc'])
         content.append(sec)
         form_info['docname'] = env.docname
-    for node in doctree.traverse(form_fields_node):
+    ff_nodes = doctree.traverse(form_fields_node)
+    for node in ff_nodes:
         node.replace_self(content)
+    if ff_nodes:
+        env.build_toc_from(env.docname, doctree)
 
 
 def process_from_fields_dict(form_fields):
