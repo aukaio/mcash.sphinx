@@ -205,7 +205,7 @@ class WTFormsDirective(Directive):
                 self.parse_field_doc(type(field), result)
             self.form_fields[field_path] = {
                 'doc': result.children,
-                'target_id': "wtforms-fielddoc-%d" % env.new_serialno('wtforms-fielddoc')
+                'target_id': "wtforms-fielddoc-%s-%d" % (env.docname, env.new_serialno('wtforms-fielddoc'))
             }
         for node in specs_cell.traverse(field_type_ref):
             node['field_path'] = field_path
