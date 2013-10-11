@@ -58,12 +58,12 @@ def get_auth_level(f):
 
 class ApiEndpointDirective(Directive):
     has_content = True
-    show_not_implemented = True
 
     required_arguments = 1
     option_spec = {
         'allowed-methods': lambda s: set(map(webapp2._normalize_handler_method, s.strip().split())),
         'exclude-handlers': lambda s: set(s.strip().split()),
+        'show-not-implemented': bool,
     }
 
     def __init__(self, name, arguments, options, content, lineno,
@@ -73,6 +73,7 @@ class ApiEndpointDirective(Directive):
         )
         self.allowed_methods = self.options['allowed-methods']
         self.exclude_handlers = self.options['exclude-handlers']
+        self.show_not_implemented = self.options.get('show-not-implemented', False)
         (self.routes_path, ) = self.arguments
         self.routes = tuple(flatten_routes(utils.import_obj(self.routes_path)))
         #self.handlers = {get_route_handler(route): route for route in self.routes}
