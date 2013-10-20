@@ -56,6 +56,15 @@ def get_auth_level(f):
     return None
 
 
+def get_authorized_roles(f):
+    try:
+        role = f._role
+    except AttributeError:
+        return None
+    from mcash.auth.authinfo import Role
+    return Role.get_authorized_role_names(f._role)
+
+
 class ApiEndpointDirective(Directive):
     has_content = True
 
@@ -135,6 +144,11 @@ class ApiEndpointDirective(Directive):
         auth_level = get_auth_level(method)
         if auth_level is not None:
             yield '    *Required auth level: %s*' % auth_level
+            yield ''
+        roles = get_authorized_roles(method)
+        if roles is not None:
+            yield '    *Authorized roles: %s*' % ', '.join(roles)
+            yield ''
         yield ''
         for line in utils.get_doc(method):
             yield '    ' + line
