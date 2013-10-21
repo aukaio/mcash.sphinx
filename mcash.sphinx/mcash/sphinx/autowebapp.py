@@ -58,11 +58,13 @@ def get_auth_level(f):
 
 def get_authorized_roles(f):
     try:
-        role = f._role
+        role = f._roles
     except AttributeError:
         return None
     from mcash.auth.authinfo import Role
-    return Role.get_authorized_role_names(f._role)
+    if role == Role.OPEN:
+        return ['ALL']
+    return Role.get_authorized_role_names(f._roles)
 
 
 class ApiEndpointDirective(Directive):
