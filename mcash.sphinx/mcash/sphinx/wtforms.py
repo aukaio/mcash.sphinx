@@ -294,19 +294,20 @@ def process_form_field_nodes(app, doctree):
     process_from_fields_dict(form_fields)
     document = doctree.traverse(nodes.document)[0]
     content = []
-    for form_path, form_info in form_fields.items():
-        if form_info['is_base']:
-            continue
-        sec = nodes.section(ids=[form_info['target_id']])
-        sec.document = document
-        sec.append(nodes.title('', form_info['name']))
-        sec.extend(form_info['doc'])
-        content.append(sec)
-        form_info['docname'] = env.docname
     ff_nodes = doctree.traverse(form_fields_node)
-    for node in ff_nodes:
-        node.replace_self(content)
     if ff_nodes:
+        for form_path, form_info in form_fields.items():
+            if form_info['is_base']:
+                continue
+            sec = nodes.section(ids=[form_info['target_id']])
+            sec.document = document
+            sec.append(nodes.title('', form_info['name']))
+            sec.extend(form_info['doc'])
+            content.append(sec)
+            form_info['docname'] = env.docname
+            print env.docname
+        for node in ff_nodes:
+            node.replace_self(content)
         env.build_toc_from(env.docname, doctree)
 
 
