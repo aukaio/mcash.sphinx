@@ -305,7 +305,6 @@ def process_form_field_nodes(app, doctree):
             sec.extend(form_info['doc'])
             content.append(sec)
             form_info['docname'] = env.docname
-            print env.docname
         for node in ff_nodes:
             node.replace_self(content)
         env.build_toc_from(env.docname, doctree)
