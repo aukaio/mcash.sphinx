@@ -115,7 +115,7 @@ class WTFormsDirective(Directive):
     def __init__(self, name, arguments, options, content, lineno,
                  content_offset, block_text, state, state_machine):
         super(WTFormsDirective, self).__init__(name, arguments, options, content, lineno,
-                 content_offset, block_text, state, state_machine)
+                                               content_offset, block_text, state, state_machine)
         self.exclude_docstring = self.options.get('exclude-docstring', False)
 
     def run(self):
@@ -260,8 +260,6 @@ class WTFormsDirective(Directive):
         form_instance = form_class()
 
         for field in form_instance:
-            if field.name == 'link':
-                continue
             self.process_field_delegate(field, table)
 
     def parse_field_doc(self, obj, parent):
