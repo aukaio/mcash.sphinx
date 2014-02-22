@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mcash.sphinx',
-    version='0.1',
+    version='0.2',
     author="mCASH Team",
     author_email="support@mca.sh",
     description="mCASH Sphinx modules",
